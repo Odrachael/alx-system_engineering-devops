@@ -1,32 +1,24 @@
 #!/usr/bin/env bash
-# install load balancer
 
+echo -e "Updating package repository...\n"
 
-echo -e "Updating and doing some minor checks...\n"
+sudo apt-get update -y -qq
 
 function install() {
-	command -v "$1" &> /dev/null
+    command -v "$1" &> /dev/null
 
-	#shellcheck disable=SC2181
-	if [ $? -ne 0 ]; then
-		echo -e "	Installing: $1\n"
-		sudo apt-get update -y -qq && \
-			sudo apt-get install -y "$1" -qq
-		echo -e "\n"
-	else
-		echo -e "	${1} is already installed.\n"
-	fi
+    if [ $? -ne 0 ]; then
+        sudo apt-get install -y "$1" -qq || { echo "Error: Failed to install $1. Exiting."; exit 1; }
+    fi
 }
 
-install haproxy #install haproxy
+install haproxy
 
-echo -e "\nSetting up some minor stuff.\n"
+echo -e "Setting up some minor stuff...\n"
 
-# backup default server config file
 sudo cp /etc/haproxy/haproxy.cfg haproxy_default.backup
 
-server_config=\
-"
+server_config="
 defaults
   mode http
   timeout client 15s
@@ -44,16 +36,16 @@ backend servers
     server 422943-web-02 54.237.33.18 check
 "
 
-# shellcheck disable=SC2154
-echo "$server_config" | sudo dd status=none of=/etc/haproxy/haproxy.cfg
+echo "$server_config" | sudo dd status=none of=/etc/haproxy/haproxy.cfg || { echo "Error: Failed to write HAProxy configuration. Exiting."; exit 1; }
 
-# enable haproxy to be started by init script
-echo "ENABLED=1" | sudo dd status=none of=/etc/default/haproxy
+echo "ENABLED=1" | sudo dd status=none of=/etc/default/haproxy || { echo "Error: Failed to enable HAProxy. Exiting."; exit 1; }
 
-echo "configured - Roundrobin On web-01 & web-02"
+echo "Configured - Roundrobin On web-01 & web-02"
 
 if [ "$(pgrep -c haproxy)" -le 0 ]; then
-	sudo service haproxy start
+    sudo service haproxy start || { echo "Error: Failed to start HAProxy. Exiting."; exit 1; }
 else
-	sudo service haproxy restart
+    sudo service haproxy restart || { echo "Error: Failed to restart HAProxy. Exiting."; exit 1; }
 fi
+
+echo "HAProxy installation and configuration completed successfully."
